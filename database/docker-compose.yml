@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  # MySQL Database Service
+  mysql:
+    image: mysql:8.0
+    container_name: charan_aquarium_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: charan_aquarium
+      MYSQL_USER: charan_user
+      MYSQL_PASSWORD: charan_password
+    ports:
+      - "3306:3306"
+    volumes:
+      # Mount SQL init script
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      # Persist database data
+      - mysql_data:/var/lib/mysql
+    networks:
+      - charan_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # phpMyAdmin (Optional - for database management)
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: charan_phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: rootpassword
+      UPLOAD_LIMIT: 300M
+    ports:
+      - "8080:80"
+    depends_on:
+      - mysql
+    networks:
+      - charan_network
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  charan_network:
+    driver: bridge
+
