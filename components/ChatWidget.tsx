@@ -9,7 +9,9 @@ const ChatWidget = () => {
   const [isMinimized, setIsMinimized] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Sticky scroll refs/state
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
   const conversationId = auth.user?.id || '';
 
   useEffect(() => {
@@ -19,13 +21,25 @@ const ChatWidget = () => {
   }, [isOpen, isMinimized]);
 
   useEffect(() => {
-    if (isOpen && !isMinimized) {
+    // Chỉ auto scroll khi user đang ở gần đáy (sticky scroll)
+    if (isOpen && !isMinimized && isAtBottom) {
       scrollToBottom();
     }
-  }, [messages, isOpen, isMinimized]);
+  }, [messages, isOpen, isMinimized, isAtBottom]);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
+  };
+
+  const handleScroll = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    // Consider “at bottom” nếu cách đáy < 120px
+    setIsAtBottom(distanceFromBottom < 120);
   };
 
   const loadMessages = () => {
@@ -171,7 +185,11 @@ const ChatWidget = () => {
           {!isMinimized && (
             <>
               {/* Messages Area */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+              <div
+                className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50"
+                ref={messagesContainerRef}
+                onScroll={handleScroll}
+              >
                 {messages.length === 0 ? (
                   <div className="text-center py-8">
                     <MessageCircle className="h-12 w-12 text-gray-300 mx-auto mb-3" />
@@ -207,7 +225,6 @@ const ChatWidget = () => {
                     );
                   })
                 )}
-                <div ref={messagesEndRef} />
               </div>
 
               {/* Input Area */}

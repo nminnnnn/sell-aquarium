@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Filter, ShoppingBag, Search, Check } from 'lucide-react';
 import { Product, Category } from '../types';
@@ -15,12 +15,27 @@ const Shop = () => {
   
   const { addToCart } = useApp();
 
-  useEffect(() => {
+  const loadProducts = useCallback(() => {
     productService.getAll().then(data => {
       setProducts(data);
       setLoading(false);
     });
   }, []);
+
+  useEffect(() => {
+    loadProducts();
+  }, [loadProducts]);
+
+  // Listen for product updates broadcast from other tabs/admin
+  useEffect(() => {
+    const handler = (e: StorageEvent) => {
+      if (e.key === 'charan_products_sync') {
+        loadProducts();
+      }
+    };
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
+  }, [loadProducts]);
 
   const filteredProducts = products.filter(p => {
     const matchesCat = activeCategory === 'All' || p.category === activeCategory;

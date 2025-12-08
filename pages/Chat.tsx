@@ -10,17 +10,33 @@ const Chat = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const messagesEndRef = useRef<HTMLDivElement>(null); // fallback if needed
   const conversationId = auth.user?.id || '';
 
   useEffect(() => {
     loadMessages();
-    // Auto-scroll to bottom when messages change
-    scrollToBottom();
-  }, [messages]);
+    // Auto-scroll only if user is at bottom
+    if (isAtBottom) {
+      scrollToBottom();
+    }
+  }, [messages, isAtBottom]);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const handleScroll = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    setIsAtBottom(distanceFromBottom < 120);
   };
 
   const loadMessages = () => {
@@ -84,7 +100,11 @@ const Chat = () => {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="bg-white rounded-xl shadow-lg overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 200px)' }}>
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
+          <div
+            className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50"
+            ref={messagesContainerRef}
+            onScroll={handleScroll}
+          >
             {messages.length === 0 ? (
               <div className="text-center py-12">
                 <MessageCircle className="h-16 w-16 text-gray-300 mx-auto mb-4" />

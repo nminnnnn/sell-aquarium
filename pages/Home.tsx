@@ -1,12 +1,36 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Star, ShieldCheck, Truck, Sparkles, Droplets } from 'lucide-react';
-import { CATEGORIES, INITIAL_PRODUCTS } from '../constants';
+import { CATEGORIES } from '../constants';
+import { productService } from '../services/api';
+import { Product } from '../types';
 
 const Home = () => {
-  // Get highlighted products
-  const newArrivals = INITIAL_PRODUCTS.slice(0, 4);
-  const marineFish = INITIAL_PRODUCTS.filter(p => p.category === 'Marine').slice(0, 3);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    productService.getAll().then(data => {
+      setProducts(data);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  // Get highlighted products from live data
+  const newArrivals = products.slice(0, 4);
+  const marineFish = products.filter(p => p.category === 'Marine').slice(0, 3);
+
+  // Static images for categories to avoid random/blocked URLs
+  const categoryImageMap: Record<string, string> = {
+    Freshwater: '/img/cat-freshwater.jpg',
+    Marine: '/img/cat-marine.jpg',
+    Exotic: '/img/cat-exotic.jpg',
+    Tanks: '/img/cat-tanks.jpg',
+    Food: '/img/cat-food.jpg',
+    Accessories: '/img/cat-accessories.jpg'
+  };
+
+  const getCategoryImage = (cat: string) => categoryImageMap[cat] || '/img/cat-placeholder.jpg';
 
   return (
     <div className="space-y-16 pb-12">
@@ -91,7 +115,7 @@ const Home = () => {
               className="group relative overflow-hidden rounded-2xl aspect-[4/5] bg-gray-100 shadow-md hover:shadow-xl transition-all duration-300"
             >
               <img 
-                src={`https://source.unsplash.com/random/400x500/?${cat === 'Marine' ? 'clownfish' : cat === 'Food' ? 'fish-food' : cat === 'Tanks' ? 'aquarium' : cat === 'Exotic' ? 'arowana' : 'aquarium-fish'}`} 
+                src={getCategoryImage(cat)}
                 alt={cat}
                 className="w-full h-full object-cover group-hover:scale-110 transition duration-700"
               />

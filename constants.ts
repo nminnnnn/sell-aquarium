@@ -30,7 +30,7 @@ export const INITIAL_PRODUCTS = [
     stock: 2,
     origin: 'Indonesia (Certificate Included)',
     description: 'Premium quality Super Red Arowana, 6 inches. Chip certified. The ultimate status symbol for your tank.',
-    image: 'https://images.unsplash.com/photo-1629802497643-4dc392473456?q=80&w=800&auto=format&fit=crop',
+    image: '/img/super-red-arowana.jpg', // put file in public/img/super-red-arowana.jpg
     isNew: true
   },
   {

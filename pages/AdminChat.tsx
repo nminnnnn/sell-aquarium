@@ -10,7 +10,8 @@ const AdminChat = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
 
   useEffect(() => {
     if (!auth.user || auth.user.role !== 'admin') {
@@ -94,11 +95,23 @@ const AdminChat = () => {
   }, [selectedUserId]);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (isAtBottom) {
+      scrollToBottom();
+    }
+  }, [messages, isAtBottom]);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
+  };
+
+  const handleScroll = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    setIsAtBottom(distanceFromBottom < 120);
   };
 
   const loadConversations = () => {
@@ -211,12 +224,17 @@ const AdminChat = () => {
       if (stored) {
         const msgs: Message[] = JSON.parse(stored);
         const previousLength = messages.length;
-        
-        // Always update messages to get latest
-        setMessages(msgs);
+        const prevLastId = messages[messages.length - 1]?.id;
+        const nextLastId = msgs[msgs.length - 1]?.id;
+
+        // Chỉ setMessages nếu có thay đổi (độ dài khác hoặc id tin nhắn cuối khác)
+        const changed = previousLength !== msgs.length || prevLastId !== nextLastId;
+        if (changed) {
+          setMessages(msgs);
+        }
         
         // Auto-scroll if new messages arrived
-        if (msgs.length > previousLength) {
+        if (changed && msgs.length > previousLength && isAtBottom) {
           setTimeout(() => scrollToBottom(), 100);
         }
         
@@ -331,7 +349,11 @@ const AdminChat = () => {
                 </div>
 
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
+                <div
+                  className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50"
+                  ref={messagesContainerRef}
+                  onScroll={handleScroll}
+                >
                   {messages.length === 0 ? (
                     <div className="text-center py-12">
                       <MessageCircle className="h-12 w-12 text-gray-300 mx-auto mb-3" />
@@ -366,7 +388,6 @@ const AdminChat = () => {
                       );
                     })
                   )}
-                  <div ref={messagesEndRef} />
                 </div>
 
                 {/* Input */}

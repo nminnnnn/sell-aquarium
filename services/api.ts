@@ -1,8 +1,8 @@
 import { Product, User, Order } from '../types';
 import { INITIAL_PRODUCTS } from '../constants';
 
-// Keys for LocalStorage
-const PRODUCTS_KEY = 'charan_products';
+const API_BASE = 'http://localhost:4000';
+const PRODUCTS_SYNC_KEY = 'charan_products_sync';
 const USERS_KEY = 'charan_users';
 const ORDERS_KEY = 'charan_orders';
 const CURRENT_USER_KEY = 'charan_current_user';
@@ -16,6 +16,14 @@ const getStorage = <T>(key: string, defaultVal: T): T => {
 
 const setStorage = (key: string, val: any) => {
   localStorage.setItem(key, JSON.stringify(val));
+};
+
+const broadcastProductsSync = () => {
+  try {
+    localStorage.setItem(PRODUCTS_SYNC_KEY, Date.now().toString());
+  } catch (e) {
+    console.warn('broadcastProductsSync failed:', e);
+  }
 };
 
 // --- Initialize Default Users ---
@@ -162,46 +170,42 @@ export const authService = {
   }
 };
 
-// --- Product Service ---
+// --- Product Service (json-server REST) ---
 export const productService = {
   getAll: async (): Promise<Product[]> => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const products = getStorage<Product[]>(PRODUCTS_KEY, []);
-        if (products.length === 0) {
-          // Seed initial data
-          setStorage(PRODUCTS_KEY, INITIAL_PRODUCTS);
-          resolve(INITIAL_PRODUCTS as unknown as Product[]);
-        } else {
-          resolve(products);
-        }
-      }, 500);
-    });
+    const res = await fetch(`${API_BASE}/products`);
+    if (!res.ok) throw new Error('Failed to fetch products');
+    return res.json();
   },
 
   add: async (product: Omit<Product, 'id'>): Promise<Product> => {
-    const products = getStorage<Product[]>(PRODUCTS_KEY, []);
-    const newProduct = { ...product, id: Date.now().toString() };
-    products.push(newProduct);
-    setStorage(PRODUCTS_KEY, products);
-    return newProduct;
+    const res = await fetch(`${API_BASE}/products`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(product)
+    });
+    if (!res.ok) throw new Error('Failed to add product');
+    const created = await res.json();
+    broadcastProductsSync();
+    return created;
   },
 
   update: async (product: Product): Promise<Product> => {
-    const products = getStorage<Product[]>(PRODUCTS_KEY, []);
-    const index = products.findIndex(p => p.id === product.id);
-    if (index !== -1) {
-      products[index] = product;
-      setStorage(PRODUCTS_KEY, products);
-      return product;
-    }
-    throw new Error('Product not found');
+    const res = await fetch(`${API_BASE}/products/${product.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(product)
+    });
+    if (!res.ok) throw new Error('Failed to update product');
+    const updated = await res.json();
+    broadcastProductsSync();
+    return updated;
   },
 
   delete: async (id: string) => {
-    const products = getStorage<Product[]>(PRODUCTS_KEY, []);
-    const filtered = products.filter(p => p.id !== id);
-    setStorage(PRODUCTS_KEY, filtered);
+    const res = await fetch(`${API_BASE}/products/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Failed to delete product');
+    broadcastProductsSync();
   }
 };
 
