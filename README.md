@@ -7,10 +7,20 @@ A modern e-commerce website for aquarium products built with React, TypeScript, 
 ### Prerequisites
 
 - **Node.js** (v16 or higher)
-- **Docker Desktop** (for database)
-- **PHP** (v8.0 or higher) - for API server
+- **json-server** (for product API; install with `npm install -g json-server` or use `npx`)
+- **Docker Desktop** (for MySQL/PHP API, optional if you want the PHP backend)
+- **PHP** (v8.0 or higher, only if you run the PHP API)
 
-### Step 1: Setup Database with Docker
+### Option A (Recommended for product sync): Run json-server for products
+
+1. **Start json-server** (from project root):
+   ```bash
+   npx json-server --watch database/db.json --port 4000
+   ```
+2. API base used by frontend: `http://localhost:4000`
+3. Admin updates (add/edit/delete products) will sync to all clients via this API.
+
+### Option B (Legacy / optional): Setup Database with Docker + PHP API
 
 1. **Navigate to database folder:**
    ```bash
@@ -148,7 +158,9 @@ DB_PASSWORD: charan_password
 
 ### Frontend API Endpoints
 
-Update `services/api.ts` if you need to change API base URL (default: `http://localhost:8000`)
+- Products (json-server, default): `http://localhost:4000`
+- PHP API (legacy, if you run it): `http://localhost:8000`
+- Update `services/api.ts` if you need to change `API_BASE`.
 
 ## 📡 API Endpoints
 
@@ -243,6 +255,15 @@ docker exec charan_aquarium_db mysqldump -u root -prootpassword charan_aquarium 
 3. **Environment Variables**: For production, move sensitive data to environment variables.
 
 4. **Data Persistence**: Database data is stored in Docker volume `mysql_data`. Use `docker-compose down -v` to remove it.
+
+5. **Category Images (Home page)**: Place these files in `public/img/` for the "Shop By Category" section:
+   - `cat-freshwater.jpg`
+   - `cat-marine.jpg`
+   - `cat-exotic.jpg`
+   - `cat-tanks.jpg`
+   - `cat-food.jpg`
+   - `cat-accessories.jpg`
+   - (optional) `cat-placeholder.jpg` as fallback.
 
 ## 🚀 Production Deployment
 
