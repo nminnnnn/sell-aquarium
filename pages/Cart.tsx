@@ -7,6 +7,7 @@ import { orderService } from '../services/api';
 const Cart = () => {
   const { cart, removeFromCart, addToCart, cartTotal, auth, clearCart } = useApp();
   const [address, setAddress] = useState(auth.user?.address || '');
+  const paymentsEnabled = false; // temporarily disable checkout
 
   const handleQuantityChange = (id: string, delta: number) => {
     const item = cart.find(i => i.id === id);
@@ -20,6 +21,11 @@ const Cart = () => {
   };
 
   const handleCheckout = async () => {
+    if (!paymentsEnabled) {
+      alert('Thanh toán tạm thời bị vô hiệu hóa. Vui lòng liên hệ cửa hàng để đặt hàng.');
+      return;
+    }
+
     if (!auth.user) {
       alert('Please login to continue');
       window.location.hash = '#/login';
@@ -138,13 +144,20 @@ const Cart = () => {
 
           <button 
             onClick={handleCheckout}
-            className="w-full bg-green-500 hover:bg-green-600 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition"
+            disabled={!paymentsEnabled}
+            className={`w-full py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition ${
+              paymentsEnabled 
+                ? 'bg-green-500 hover:bg-green-600 text-white' 
+                : 'bg-gray-300 text-gray-600 cursor-not-allowed'
+            }`}
           >
             <MessageCircle size={20} />
-            Purchase via WhatsApp
+            {paymentsEnabled ? 'Purchase via WhatsApp' : 'Thanh toán đang tạm khóa'}
           </button>
           <p className="text-xs text-center text-gray-500 mt-3">
-            Clicking purchase will redirect you to WhatsApp to confirm your order with {STORE_DETAILS.name}.
+            {paymentsEnabled
+              ? `Clicking purchase will redirect you to WhatsApp to confirm your order with ${STORE_DETAILS.name}.`
+              : 'Thanh toán qua WhatsApp đang tạm thời vô hiệu hóa. Vui lòng liên hệ cửa hàng để đặt hàng.'}
           </p>
         </div>
       </div>

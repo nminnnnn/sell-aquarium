@@ -12,7 +12,7 @@ services:
       MYSQL_USER: charan_user
       MYSQL_PASSWORD: charan_password
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       # Mount SQL init script
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro

@@ -11,7 +11,7 @@ define('DB_USER', 'charan_user');
 define('DB_PASS', 'charan_password'); // Docker MySQL password
 define('DB_NAME', 'charan_aquarium');
 define('DB_CHARSET', 'utf8mb4');
-define('DB_PORT', 3306);
+define('DB_PORT', 3307);
 
 // Create database connection
 function getDBConnection() {

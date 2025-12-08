@@ -44,6 +44,46 @@ switch ($method) {
                 error_log("Login Error: " . $e->getMessage());
                 sendJSON(['success' => false, 'message' => 'Login failed'], 500);
             }
+        } elseif ($action === 'register') {
+            // Register new user
+            $username = trim($data['username'] ?? '');
+            $password = $data['password'] ?? '';
+            $name = trim($data['name'] ?? 'New User');
+            $phone = trim($data['phone'] ?? '');
+            $address = trim($data['address'] ?? '');
+            $role = 'customer';
+
+            if (empty($username) || empty($password)) {
+                sendJSON(['success' => false, 'message' => 'Username and password are required'], 400);
+            }
+
+            try {
+                // Check if username exists
+                $stmt = $pdo->prepare("SELECT id FROM users WHERE username = ?");
+                $stmt->execute([$username]);
+                if ($stmt->fetch()) {
+                    sendJSON(['success' => false, 'message' => 'Username already exists'], 409);
+                }
+
+                // Insert user (plain password for demo; use password_hash in production)
+                $stmt = $pdo->prepare("INSERT INTO users (username, password, name, phone, role, address) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$username, $password, $name, $phone, $role, $address]);
+                $userId = $pdo->lastInsertId();
+
+                $user = [
+                    'id' => $userId,
+                    'username' => $username,
+                    'name' => $name,
+                    'phone' => $phone,
+                    'role' => $role,
+                    'address' => $address
+                ];
+
+                sendJSON(['success' => true, 'user' => $user, 'message' => 'Registration successful'], 201);
+            } catch (PDOException $e) {
+                error_log("Register Error: " . $e->getMessage());
+                sendJSON(['success' => false, 'message' => 'Registration failed'], 500);
+            }
         } else {
             sendJSON(['success' => false, 'message' => 'Invalid action'], 400);
         }

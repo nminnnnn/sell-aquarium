@@ -16,6 +16,8 @@ A modern e-commerce website for aquarium products built with React, TypeScript, 
 1. **Start json-server** (from project root):
    ```bash
    npx json-server --watch database/db.json --port 4000
+   <!-- npx json-server --watch db.json --port 4000 -->
+   php -S localhost:8000 -t .
    ```
 2. API base used by frontend: `http://localhost:4000`
 3. Admin updates (add/edit/delete products) will sync to all clients via this API.

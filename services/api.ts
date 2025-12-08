@@ -1,9 +1,10 @@
 import { Product, User, Order } from '../types';
 import { INITIAL_PRODUCTS } from '../constants';
 
-const API_BASE = 'http://localhost:4000';
+const PRODUCTS_API_BASE = 'http://localhost:4000';
+const AUTH_API_BASE = 'http://localhost:8000/api';
 const PRODUCTS_SYNC_KEY = 'charan_products_sync';
-const USERS_KEY = 'charan_users';
+const USERS_KEY = 'charan_users'; // legacy local users (kept for backward compat)
 const ORDERS_KEY = 'charan_orders';
 const CURRENT_USER_KEY = 'charan_current_user';
 
@@ -89,22 +90,53 @@ initializeUsers();
 // --- Auth Service ---
 export const authService = {
   login: async (username: string, password: string): Promise<User | null> => {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        const users = getStorage<User[]>(USERS_KEY, []);
-        const user = users.find(u => u.username === username && u.password === password);
-        
-        if (user) {
-          // Remove password from user object before storing
-          const userWithoutPassword: User = { ...user };
-          delete userWithoutPassword.password;
-          setStorage(CURRENT_USER_KEY, userWithoutPassword);
-          resolve(userWithoutPassword);
-        } else {
-          reject(new Error('Invalid username or password'));
-        }
-      }, 500);
+    const res = await fetch(`${AUTH_API_BASE}/auth.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'login', username, password })
     });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || 'Invalid username or password');
+    }
+    const user: User = data.user;
+    setStorage(CURRENT_USER_KEY, user);
+    return user;
+  },
+
+  register: async (data: {
+    username: string;
+    password: string;
+    name?: string;
+    phone?: string;
+    address?: string;
+  }): Promise<User> => {
+    const { username, password, name = 'New User', phone = '', address = '' } = data;
+    if (!username.trim() || !password.trim()) {
+      throw new Error('Username and password are required');
+    }
+
+    const users = getStorage<User[]>(USERS_KEY, []);
+    const exists = users.find(u => u.username?.toLowerCase() === username.toLowerCase());
+    if (exists) throw new Error('Username already exists');
+
+    const newUser: User = {
+      id: Date.now().toString(),
+      name,
+      phone,
+      address,
+      role: 'customer',
+      username: username.trim(),
+      password
+    };
+
+    users.push(newUser);
+    setStorage(USERS_KEY, users);
+
+    const userWithoutPassword: User = { ...newUser };
+    delete userWithoutPassword.password;
+    setStorage(CURRENT_USER_KEY, userWithoutPassword);
+    return userWithoutPassword;
   },
 
   sendOtp: async (phone: string): Promise<boolean> => {
@@ -150,6 +182,27 @@ export const authService = {
     });
   },
 
+  register: async (payload: {
+    username: string;
+    password: string;
+    name?: string;
+    phone?: string;
+    address?: string;
+  }): Promise<User> => {
+    const res = await fetch(`${AUTH_API_BASE}/auth.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'register', ...payload })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || 'Registration failed');
+    }
+    const user: User = data.user;
+    setStorage(CURRENT_USER_KEY, user);
+    return user;
+  },
+
   getCurrentUser: (): User | null => {
     return getStorage<User | null>(CURRENT_USER_KEY, null);
   },
@@ -165,6 +218,9 @@ export const authService = {
           users[index] = user;
           setStorage(USERS_KEY, users);
           setStorage(CURRENT_USER_KEY, user);
+      } else {
+          // If user not in local legacy store, just update current session
+          setStorage(CURRENT_USER_KEY, user);
       }
       return user;
   }
@@ -173,7 +229,7 @@ export const authService = {
 // --- Product Service (json-server REST) ---
 export const productService = {
   getAll: async (): Promise<Product[]> => {
-    const res = await fetch(`${API_BASE}/products`);
+    const res = await fetch(`${PRODUCTS_API_BASE}/products`);
     if (!res.ok) throw new Error('Failed to fetch products');
     return res.json();
   },
