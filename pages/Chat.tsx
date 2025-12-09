@@ -3,6 +3,7 @@ import { Send, MessageCircle, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context';
 import { Message } from '../types';
+import { chatService } from '../services/api';
 
 const Chat = () => {
   const { auth } = useApp();
@@ -17,6 +18,9 @@ const Chat = () => {
 
   useEffect(() => {
     loadMessages();
+  }, []);
+
+  useEffect(() => {
     // Auto-scroll only if user is at bottom
     if (isAtBottom) {
       scrollToBottom();
@@ -39,36 +43,36 @@ const Chat = () => {
     setIsAtBottom(distanceFromBottom < 120);
   };
 
-  const loadMessages = () => {
-    const stored = localStorage.getItem(`chat_${conversationId}`);
-    if (stored) {
-      setMessages(JSON.parse(stored));
+  const loadMessages = async () => {
+    if (!conversationId) return;
+    try {
+      const msgs = await chatService.getMessages(conversationId);
+      setMessages(msgs);
+    } catch (error) {
+      console.error('Chat: loadMessages failed', error);
     }
-  };
-
-  const saveMessages = (msgs: Message[]) => {
-    localStorage.setItem(`chat_${conversationId}`, JSON.stringify(msgs));
   };
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !auth.user) return;
 
-    const message: Message = {
-      id: Date.now().toString(),
+    const payload = {
       conversationId,
       senderId: auth.user.id,
       senderName: auth.user.name,
-      senderRole: auth.user.role,
-      message: newMessage.trim(),
-      timestamp: new Date().toISOString(),
-      read: false
+      senderRole: auth.user.role as Message['senderRole'],
+      message: newMessage.trim()
     };
 
-    const updatedMessages = [...messages, message];
-    setMessages(updatedMessages);
-    saveMessages(updatedMessages);
-    setNewMessage('');
+    try {
+      const saved = await chatService.sendMessage(payload);
+      const updatedMessages = [...messages, saved];
+      setMessages(updatedMessages);
+      setNewMessage('');
+    } catch (error) {
+      console.error('Chat: send failed', error);
+    }
   };
 
   return (

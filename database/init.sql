@@ -85,6 +85,24 @@ CREATE TABLE IF NOT EXISTS `order_items` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
+-- Table: chat_messages
+-- ============================================
+CREATE TABLE IF NOT EXISTS `chat_messages` (
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `conversation_id` VARCHAR(100) NOT NULL,
+  `sender_id` VARCHAR(100) NOT NULL,
+  `sender_name` VARCHAR(150) NOT NULL,
+  `sender_role` ENUM('admin','customer') NOT NULL DEFAULT 'customer',
+  `message` TEXT NOT NULL,
+  `read` TINYINT(1) NOT NULL DEFAULT 0,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_conversation` (`conversation_id`),
+  INDEX `idx_sender_role` (`sender_role`),
+  INDEX `idx_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
 -- Insert Default Users (5 accounts: 1 admin, 4 customers)
 -- ============================================
 -- Note: Passwords are stored in plain text for demo purposes only

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { MessageCircle, X, Send, Minimize2 } from 'lucide-react';
 import { useApp } from '../context';
 import { Message } from '../types';
+import { chatService } from '../services/api';
 
 const ChatWidget = () => {
   const { auth } = useApp();
@@ -17,6 +18,8 @@ const ChatWidget = () => {
   useEffect(() => {
     if (isOpen && !isMinimized) {
       loadMessages();
+      const interval = setInterval(loadMessages, 1000);
+      return () => clearInterval(interval);
     }
   }, [isOpen, isMinimized]);
 
@@ -42,48 +45,13 @@ const ChatWidget = () => {
     setIsAtBottom(distanceFromBottom < 120);
   };
 
-  const loadMessages = () => {
+  const loadMessages = async () => {
     if (!conversationId) return;
-    const stored = localStorage.getItem(`chat_${conversationId}`);
-    if (stored) {
-      setMessages(JSON.parse(stored));
-    }
-  };
-
-  const saveMessages = (msgs: Message[]) => {
-    if (!conversationId) {
-      console.error('ChatWidget: Cannot save - conversationId is empty');
-      return;
-    }
-    const key = `chat_${conversationId}`;
-    console.log('ChatWidget: Saving messages to localStorage:', key, msgs);
     try {
-      localStorage.setItem(key, JSON.stringify(msgs));
-      console.log('ChatWidget: Successfully saved to localStorage');
-      
-      // Trigger storage event manually for same-tab listeners
-      // This helps with cross-tab communication
-      window.dispatchEvent(new StorageEvent('storage', {
-        key: key,
-        newValue: JSON.stringify(msgs),
-        oldValue: localStorage.getItem(key),
-        storageArea: localStorage
-      }));
-      
-      // Also use BroadcastChannel for cross-tab communication
-      try {
-        const channel = new BroadcastChannel('chat_messages');
-        channel.postMessage({ type: 'message_saved', key, messages: msgs });
-        channel.close();
-      } catch (e) {
-        console.log('ChatWidget: BroadcastChannel not supported, using storage event only');
-      }
-      
-      // Verify it was saved
-      const verify = localStorage.getItem(key);
-      console.log('ChatWidget: Verification - retrieved from localStorage:', verify ? 'SUCCESS' : 'FAILED');
+      const msgs = await chatService.getMessages(conversationId);
+      setMessages(msgs);
     } catch (error) {
-      console.error('ChatWidget: Error saving to localStorage:', error);
+      console.error('ChatWidget: loadMessages failed', error);
     }
   };
 
@@ -91,24 +59,23 @@ const ChatWidget = () => {
     e.preventDefault();
     if (!newMessage.trim() || !auth.user) return;
 
-    const message: Message = {
-      id: Date.now().toString(),
+    const payload = {
       conversationId,
       senderId: auth.user.id,
       senderName: auth.user.name,
-      senderRole: auth.user.role || 'customer', // Ensure role is set, default to 'customer'
-      message: newMessage.trim(),
-      timestamp: new Date().toISOString(),
-      read: false
+      senderRole: (auth.user.role as Message['senderRole']) || 'customer',
+      message: newMessage.trim()
     };
-    
-    // Debug: Log message being sent
-    console.log('Customer sending message:', message);
 
-    const updatedMessages = [...messages, message];
-    setMessages(updatedMessages);
-    saveMessages(updatedMessages);
-    setNewMessage('');
+    try {
+      const saved = await chatService.sendMessage(payload);
+      const updatedMessages = [...messages, saved];
+      setMessages(updatedMessages);
+      setNewMessage('');
+      setTimeout(() => scrollToBottom(), 100);
+    } catch (error) {
+      console.error('ChatWidget: send failed', error);
+    }
   };
 
   // Don't show widget if user is not authenticated or is admin

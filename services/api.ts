@@ -3,6 +3,7 @@ import { INITIAL_PRODUCTS } from '../constants';
 
 const PRODUCTS_API_BASE = 'http://localhost:4000';
 const AUTH_API_BASE = 'http://localhost:8000/api';
+const CHAT_API_BASE = 'http://localhost:8000/api/chat.php';
 const PRODUCTS_SYNC_KEY = 'charan_products_sync';
 const USERS_KEY = 'charan_users'; // legacy local users (kept for backward compat)
 const ORDERS_KEY = 'charan_orders';
@@ -24,6 +25,38 @@ const broadcastProductsSync = () => {
     localStorage.setItem(PRODUCTS_SYNC_KEY, Date.now().toString());
   } catch (e) {
     console.warn('broadcastProductsSync failed:', e);
+  }
+};
+
+// --- Chat Service (uses PHP backend) ---
+export const chatService = {
+  getMessages: async (conversationId: string) => {
+    const res = await fetch(`${CHAT_API_BASE}?conversationId=${encodeURIComponent(conversationId)}`);
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.message || 'Failed to load messages');
+    return data.messages as any[];
+  },
+  getAllMessages: async () => {
+    const res = await fetch(`${CHAT_API_BASE}?all=1`);
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.message || 'Failed to load all messages');
+    return data.messages as any[];
+  },
+  sendMessage: async (payload: {
+    conversationId: string;
+    senderId: string;
+    senderName: string;
+    senderRole: 'admin' | 'customer';
+    message: string;
+  }) => {
+    const res = await fetch(CHAT_API_BASE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.message || 'Failed to send message');
+    return data.message as any;
   }
 };
 

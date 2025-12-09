@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Send, MessageCircle, Users, Search } from 'lucide-react';
 import { useApp } from '../context';
 import { Message, User } from '../types';
+import { chatService } from '../services/api';
 
 const AdminChat = () => {
   const { auth } = useApp();
@@ -20,72 +21,15 @@ const AdminChat = () => {
     }
     
     console.log('AdminChat: useEffect - Loading conversations');
-    // Load immediately
     loadConversations();
-    
-    // Listen for storage events (when localStorage changes in other tabs)
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key && e.key.startsWith('chat_')) {
-        console.log('AdminChat: Storage event detected:', e.key, e.newValue);
-        loadConversations();
-        if (selectedUserId && e.key === `chat_${selectedUserId}`) {
-          loadMessages(selectedUserId);
-        }
-      }
-    };
-    
-    // Also listen for custom storage events (for same-tab communication)
-    const handleCustomStorage = (e: Event) => {
-      const storageEvent = e as StorageEvent;
-      if (storageEvent.key && storageEvent.key.startsWith('chat_')) {
-        console.log('AdminChat: Custom storage event detected:', storageEvent.key);
-        loadConversations();
-        if (selectedUserId && storageEvent.key === `chat_${selectedUserId}`) {
-          loadMessages(selectedUserId);
-        }
-      }
-    };
-    
-    // Listen for BroadcastChannel messages
-    let broadcastChannel: BroadcastChannel | null = null;
-    try {
-      broadcastChannel = new BroadcastChannel('chat_messages');
-      broadcastChannel.onmessage = (event) => {
-        if (event.data.type === 'message_saved' && event.data.key) {
-          console.log('AdminChat: BroadcastChannel message received:', event.data.key);
-          loadConversations();
-          if (selectedUserId && event.data.key === `chat_${selectedUserId}`) {
-            loadMessages(selectedUserId);
-          }
-        }
-      };
-    } catch (e) {
-      console.log('AdminChat: BroadcastChannel not supported');
-    }
-    
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('storage', handleCustomStorage);
-    
-    // Auto-refresh conversations every 500ms to get new messages faster
     const interval = setInterval(() => {
-      if (auth.user && auth.user.role === 'admin') {
-        console.log('AdminChat: Auto-refresh - Loading conversations');
-        loadConversations();
-        if (selectedUserId) {
-          loadMessages(selectedUserId);
-        }
+      loadConversations();
+      if (selectedUserId) {
+        loadMessages(selectedUserId);
       }
-    }, 500);
-    
-    return () => {
-      console.log('AdminChat: Cleaning up interval and storage listener');
-      clearInterval(interval);
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('storage', handleCustomStorage);
-      if (broadcastChannel) {
-        broadcastChannel.close();
-      }
-    };
+    }, 800);
+
+    return () => clearInterval(interval);
   }, [selectedUserId, auth.user?.id, auth.user?.role]);
 
   useEffect(() => {
@@ -114,94 +58,33 @@ const AdminChat = () => {
     setIsAtBottom(distanceFromBottom < 120);
   };
 
-  const loadConversations = () => {
+  const loadConversations = async () => {
     if (!auth.user || auth.user.role !== 'admin') {
       console.log('AdminChat: Not admin or not authenticated');
       return;
     }
     
-    // Get all conversations from localStorage
-    const allKeys = Object.keys(localStorage);
-    console.log('AdminChat: All localStorage keys:', allKeys);
-    console.log('AdminChat: Current origin:', window.location.origin);
-    const chatKeys = allKeys.filter(key => key.startsWith('chat_'));
-    
-    console.log('AdminChat: Found chat keys:', chatKeys);
-    console.log('AdminChat: Admin user ID:', auth.user.id);
-    
-    // Debug: Check each chat key
-    chatKeys.forEach(key => {
-      const value = localStorage.getItem(key);
-      console.log(`AdminChat: Key ${key} has value:`, value ? JSON.parse(value) : 'null');
-    });
-    
-    // Warning if no chat keys found but we expect some
-    if (chatKeys.length === 0) {
-      console.warn('AdminChat: WARNING - No chat keys found in localStorage!');
-      console.warn('AdminChat: This might mean:');
-      console.warn('  1. Customer and Admin are using different browsers');
-      console.warn('  2. One is using incognito/private mode');
-      console.warn('  3. Different origins (localhost vs 127.0.0.1)');
-      console.warn('  4. Customer has not sent any messages yet');
-      console.warn('AdminChat: Make sure both tabs are:');
-      console.warn('  - Same browser (Chrome, Firefox, etc.)');
-      console.warn('  - Same mode (both normal or both incognito)');
-      console.warn('  - Same origin (both http://localhost:5173 or both http://127.0.0.1:5173)');
-    }
-    
     const convs: { userId: string; userName: string; lastMessage: Message | null }[] = [];
-    
-    chatKeys.forEach(key => {
-      const userId = key.replace('chat_', '');
-      // Skip if it's admin's own chat (admin shouldn't chat with themselves)
-      // Compare as strings to avoid type mismatch
-      if (String(userId) === String(auth.user?.id)) {
-        console.log(`AdminChat: Skipping admin's own chat: ${key}`);
-        return;
-      }
-      
-      try {
-        const stored = localStorage.getItem(key);
-        if (stored) {
-          const msgs: Message[] = JSON.parse(stored);
-          if (msgs && Array.isArray(msgs) && msgs.length > 0) {
-            // Debug: Log messages to see what we're getting
-            console.log(`AdminChat: Loading conversation ${key}:`, msgs);
-            
-            // Get user name from first customer message (not admin message)
-            // Simply check if there's any message that's not from admin
-            const customerMsg = msgs.find(m => {
-              // Compare as strings to avoid type mismatch
-              const isCustomer = m.senderRole === 'customer' || String(m.senderId) !== String(auth.user?.id);
-              console.log(`AdminChat: Checking message ${m.id}: senderRole=${m.senderRole}, senderId=${m.senderId} (${typeof m.senderId}), adminId=${auth.user?.id} (${typeof auth.user?.id}), isCustomer=${isCustomer}`);
-              return isCustomer;
-            });
-            
-            // Only show conversations that have at least one customer message
-            if (customerMsg) {
-              const userName = customerMsg.senderName;
-              const lastMsg = msgs[msgs.length - 1];
-              console.log(`AdminChat: Adding conversation for user ${userId} (${userName})`);
-              convs.push({ userId, userName, lastMessage: lastMsg });
-            } else {
-              // Debug: Log if no customer message found
-              console.log(`AdminChat: No customer message found in ${key}, all messages:`, msgs.map(m => ({ 
-                role: m.senderRole, 
-                name: m.senderName, 
-                senderId: m.senderId,
-                adminId: auth.user?.id 
-              })));
-            }
-          } else {
-            console.log(`AdminChat: No messages in ${key}`);
-          }
-        } else {
-          console.log(`AdminChat: No stored data for ${key}`);
+    try {
+      const msgs: Message[] = await chatService.getAllMessages();
+
+      const grouped = msgs.reduce<Record<string, Message[]>>((acc, msg) => {
+        if (!acc[msg.conversationId]) acc[msg.conversationId] = [];
+        acc[msg.conversationId].push(msg);
+        return acc;
+      }, {});
+
+      Object.entries(grouped).forEach(([userId, list]) => {
+        if (String(userId) === String(auth.user?.id)) return;
+        const customerMsg = list.find(m => m.senderRole === 'customer');
+        if (customerMsg) {
+          const lastMsg = list[list.length - 1];
+          convs.push({ userId, userName: customerMsg.senderName, lastMessage: lastMsg });
         }
-      } catch (error) {
-        console.error(`AdminChat: Error loading conversation ${key}:`, error);
-      }
-    });
+      });
+    } catch (error) {
+      console.error('AdminChat: loadConversations failed', error);
+    }
 
     // Sort by last message time
     convs.sort((a, b) => {
@@ -218,34 +101,20 @@ const AdminChat = () => {
     }
   };
 
-  const loadMessages = (userId: string) => {
+  const loadMessages = async (userId: string) => {
     try {
-      const stored = localStorage.getItem(`chat_${userId}`);
-      if (stored) {
-        const msgs: Message[] = JSON.parse(stored);
-        const previousLength = messages.length;
-        const prevLastId = messages[messages.length - 1]?.id;
-        const nextLastId = msgs[msgs.length - 1]?.id;
+      const msgs: Message[] = await chatService.getMessages(userId);
+      const previousLength = messages.length;
+      const prevLastId = messages[messages.length - 1]?.id;
+      const nextLastId = msgs[msgs.length - 1]?.id;
 
-        // Chỉ setMessages nếu có thay đổi (độ dài khác hoặc id tin nhắn cuối khác)
-        const changed = previousLength !== msgs.length || prevLastId !== nextLastId;
-        if (changed) {
-          setMessages(msgs);
-        }
-        
-        // Auto-scroll if new messages arrived
-        if (changed && msgs.length > previousLength && isAtBottom) {
-          setTimeout(() => scrollToBottom(), 100);
-        }
-        
-        // Mark admin messages as read (but don't modify customer messages)
-        const updatedMsgs = msgs.map(msg => ({
-          ...msg,
-          read: msg.senderRole === 'admin' ? true : msg.read
-        }));
-        localStorage.setItem(`chat_${userId}`, JSON.stringify(updatedMsgs));
-      } else {
-        setMessages([]);
+      const changed = previousLength !== msgs.length || prevLastId !== nextLastId;
+      if (changed) {
+        setMessages(msgs);
+      }
+
+      if (changed && msgs.length > previousLength && isAtBottom) {
+        setTimeout(() => scrollToBottom(), 100);
       }
     } catch (error) {
       console.error(`Error loading messages for ${userId}:`, error);
@@ -257,24 +126,24 @@ const AdminChat = () => {
     e.preventDefault();
     if (!newMessage.trim() || !selectedUserId || !auth.user) return;
 
-    const message: Message = {
-      id: Date.now().toString(),
+    const payload = {
       conversationId: selectedUserId,
       senderId: auth.user.id,
       senderName: auth.user.name,
-      senderRole: 'admin',
-      message: newMessage.trim(),
-      timestamp: new Date().toISOString(),
-      read: false
+      senderRole: 'admin' as const,
+      message: newMessage.trim()
     };
 
-    const updatedMessages = [...messages, message];
-    setMessages(updatedMessages);
-    localStorage.setItem(`chat_${selectedUserId}`, JSON.stringify(updatedMessages));
-    setNewMessage('');
-    
-    // Refresh conversations
-    loadConversations();
+    try {
+      const saved = await chatService.sendMessage(payload);
+      const updatedMessages = [...messages, saved];
+      setMessages(updatedMessages);
+      setNewMessage('');
+      loadConversations();
+      setTimeout(() => scrollToBottom(), 100);
+    } catch (error) {
+      console.error('AdminChat: send failed', error);
+    }
   };
 
   const selectedConversation = conversations.find(c => c.userId === selectedUserId);
