@@ -1,11 +1,10 @@
 import { Product, User, Order } from '../types';
 import { INITIAL_PRODUCTS } from '../constants';
 
-const PRODUCTS_API_BASE = 'http://localhost:4000';
-const AUTH_API_BASE = 'http://localhost:8000/api';
-const CHAT_API_BASE = 'http://localhost:8000/api/chat.php';
+const API_BASE = 'http://localhost:4000';
+const AUTH_API = 'http://localhost:8000/api/auth.php';
+const CHAT_API = 'http://localhost:8000/api/chat.php';
 const PRODUCTS_SYNC_KEY = 'charan_products_sync';
-const USERS_KEY = 'charan_users'; // legacy local users (kept for backward compat)
 const ORDERS_KEY = 'charan_orders';
 const CURRENT_USER_KEY = 'charan_current_user';
 
@@ -28,109 +27,17 @@ const broadcastProductsSync = () => {
   }
 };
 
-// --- Chat Service (uses PHP backend) ---
-export const chatService = {
-  getMessages: async (conversationId: string) => {
-    const res = await fetch(`${CHAT_API_BASE}?conversationId=${encodeURIComponent(conversationId)}`);
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data.message || 'Failed to load messages');
-    return data.messages as any[];
-  },
-  getAllMessages: async () => {
-    const res = await fetch(`${CHAT_API_BASE}?all=1`);
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data.message || 'Failed to load all messages');
-    return data.messages as any[];
-  },
-  sendMessage: async (payload: {
-    conversationId: string;
-    senderId: string;
-    senderName: string;
-    senderRole: 'admin' | 'customer';
-    message: string;
-  }) => {
-    const res = await fetch(CHAT_API_BASE, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data.message || 'Failed to send message');
-    return data.message as any;
-  }
-};
-
-// --- Initialize Default Users ---
-const initializeUsers = (): User[] => {
-  const existing = getStorage<User[]>(USERS_KEY, []);
-  if (existing.length > 0) return existing; // Don't overwrite if users exist
-  
-  const defaultUsers: User[] = [
-    {
-      id: '1',
-      name: 'Admin User',
-      phone: '6302382280',
-      role: 'admin',
-      address: 'Tata Nagar, Tirupati - 517501',
-      username: 'admin',
-      password: 'admin123' // In production, this should be hashed
-    },
-    {
-      id: '2',
-      name: 'Rajesh Kumar',
-      phone: '9876543210',
-      role: 'customer',
-      address: 'SV Nagar, Tirupati',
-      username: 'rajesh',
-      password: 'rajesh123'
-    },
-    {
-      id: '3',
-      name: 'Priya Sharma',
-      phone: '9876543211',
-      role: 'customer',
-      address: 'TP Area, Tirupati',
-      username: 'priya',
-      password: 'priya123'
-    },
-    {
-      id: '4',
-      name: 'Amit Patel',
-      phone: '9876543212',
-      role: 'customer',
-      address: 'Renigunta Road, Tirupati',
-      username: 'amit',
-      password: 'amit123'
-    },
-    {
-      id: '5',
-      name: 'Sneha Reddy',
-      phone: '9876543213',
-      role: 'customer',
-      address: 'Alipiri, Tirupati',
-      username: 'sneha',
-      password: 'sneha123'
-    }
-  ];
-  
-  setStorage(USERS_KEY, defaultUsers);
-  return defaultUsers;
-};
-
-// Initialize users on first load
-initializeUsers();
-
 // --- Auth Service ---
 export const authService = {
   login: async (username: string, password: string): Promise<User | null> => {
-    const res = await fetch(`${AUTH_API_BASE}/auth.php`, {
+    const res = await fetch(AUTH_API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'login', username, password })
     });
     const data = await res.json();
     if (!res.ok || !data.success) {
-      throw new Error(data.message || 'Invalid username or password');
+      throw new Error(data.message || 'Login failed');
     }
     const user: User = data.user;
     setStorage(CURRENT_USER_KEY, user);
@@ -145,31 +52,25 @@ export const authService = {
     address?: string;
   }): Promise<User> => {
     const { username, password, name = 'New User', phone = '', address = '' } = data;
-    if (!username.trim() || !password.trim()) {
-      throw new Error('Username and password are required');
+    const res = await fetch(AUTH_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'register',
+        username,
+        password,
+        name,
+        phone,
+        address
+      })
+    });
+    const result = await res.json();
+    if (!res.ok || !result.success) {
+      throw new Error(result.message || 'Registration failed');
     }
-
-    const users = getStorage<User[]>(USERS_KEY, []);
-    const exists = users.find(u => u.username?.toLowerCase() === username.toLowerCase());
-    if (exists) throw new Error('Username already exists');
-
-    const newUser: User = {
-      id: Date.now().toString(),
-      name,
-      phone,
-      address,
-      role: 'customer',
-      username: username.trim(),
-      password
-    };
-
-    users.push(newUser);
-    setStorage(USERS_KEY, users);
-
-    const userWithoutPassword: User = { ...newUser };
-    delete userWithoutPassword.password;
-    setStorage(CURRENT_USER_KEY, userWithoutPassword);
-    return userWithoutPassword;
+    const user: User = result.user;
+    setStorage(CURRENT_USER_KEY, user);
+    return user;
   },
 
   sendOtp: async (phone: string): Promise<boolean> => {
@@ -186,54 +87,21 @@ export const authService = {
     return new Promise((resolve, reject) => {
       setTimeout(() => {
         if (otp === '1234') {
-          // Check if user exists, else register
-          const users = getStorage<User[]>(USERS_KEY, []);
-          let user = users.find(u => u.phone === phone);
-
-          if (!user) {
-            // New User Registration
-            user = {
-              id: Date.now().toString(),
-              name: 'Guest User', // To be updated by profile
-              phone,
-              role: phone === '6302382280' ? 'admin' : 'customer', // Admin backdoor for demo
-              address: ''
-            };
-            users.push(user);
-            setStorage(USERS_KEY, users);
-          }
-          
-          // Remove password from user object before storing
-          const userWithoutPassword: User = { ...user };
-          delete userWithoutPassword.password;
-          setStorage(CURRENT_USER_KEY, userWithoutPassword);
-          resolve(userWithoutPassword);
+          // Create a temp user in localStorage (demo-only OTP flow)
+          const user: User = {
+            id: Date.now().toString(),
+            name: 'Guest User',
+            phone,
+            role: phone === '6302382280' ? 'admin' : 'customer',
+            address: ''
+          };
+          setStorage(CURRENT_USER_KEY, user);
+          resolve(user);
         } else {
           reject(new Error('Invalid OTP'));
         }
       }, 800);
     });
-  },
-
-  register: async (payload: {
-    username: string;
-    password: string;
-    name?: string;
-    phone?: string;
-    address?: string;
-  }): Promise<User> => {
-    const res = await fetch(`${AUTH_API_BASE}/auth.php`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'register', ...payload })
-    });
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      throw new Error(data.message || 'Registration failed');
-    }
-    const user: User = data.user;
-    setStorage(CURRENT_USER_KEY, user);
-    return user;
   },
 
   getCurrentUser: (): User | null => {
@@ -245,16 +113,8 @@ export const authService = {
   },
   
   updateProfile: async (user: User): Promise<User> => {
-      const users = getStorage<User[]>(USERS_KEY, []);
-      const index = users.findIndex(u => u.id === user.id);
-      if(index !== -1) {
-          users[index] = user;
-          setStorage(USERS_KEY, users);
-          setStorage(CURRENT_USER_KEY, user);
-      } else {
-          // If user not in local legacy store, just update current session
-          setStorage(CURRENT_USER_KEY, user);
-      }
+      // In this demo, just update cached current user
+      setStorage(CURRENT_USER_KEY, user);
       return user;
   }
 };
@@ -262,7 +122,7 @@ export const authService = {
 // --- Product Service (json-server REST) ---
 export const productService = {
   getAll: async (): Promise<Product[]> => {
-    const res = await fetch(`${PRODUCTS_API_BASE}/products`);
+    const res = await fetch(`${API_BASE}/products`);
     if (!res.ok) throw new Error('Failed to fetch products');
     return res.json();
   },
@@ -323,5 +183,36 @@ export const orderService = {
           order.status = status;
           setStorage(ORDERS_KEY, orders);
       }
+  }
+};
+
+// --- Chat Service (PHP backend) ---
+export const chatService = {
+  getConversations: async () => {
+    const res = await fetch(`${CHAT_API}?action=conversations`);
+    if (!res.ok) throw new Error('Failed to fetch conversations');
+    return res.json();
+  },
+
+  getMessages: async (userId: string) => {
+    const res = await fetch(`${CHAT_API}?action=messages&userId=${encodeURIComponent(userId)}`);
+    if (!res.ok) throw new Error('Failed to fetch messages');
+    return res.json();
+  },
+
+  sendMessage: async (payload: {
+    userId: string;
+    senderId: string;
+    senderName: string;
+    senderRole: 'admin' | 'customer';
+    message: string;
+  }) => {
+    const res = await fetch(CHAT_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('Failed to send message');
+    return res.json();
   }
 };

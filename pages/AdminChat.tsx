@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, MessageCircle, Users, Search } from 'lucide-react';
 import { useApp } from '../context';
-import { Message, User } from '../types';
+import { Message } from '../types';
 import { chatService } from '../services/api';
 
 const AdminChat = () => {
@@ -19,17 +19,20 @@ const AdminChat = () => {
       console.log('AdminChat: useEffect - Not admin, skipping');
       return;
     }
-    
-    console.log('AdminChat: useEffect - Loading conversations');
-    loadConversations();
-    const interval = setInterval(() => {
+
+    const fetchConversations = () => {
       loadConversations();
       if (selectedUserId) {
         loadMessages(selectedUserId);
       }
-    }, 800);
+    };
 
-    return () => clearInterval(interval);
+    fetchConversations();
+    const interval = setInterval(fetchConversations, 1500);
+
+    return () => {
+      clearInterval(interval);
+    };
   }, [selectedUserId, auth.user?.id, auth.user?.role]);
 
   useEffect(() => {
@@ -60,61 +63,45 @@ const AdminChat = () => {
 
   const loadConversations = async () => {
     if (!auth.user || auth.user.role !== 'admin') {
-      console.log('AdminChat: Not admin or not authenticated');
       return;
     }
-    
-    const convs: { userId: string; userName: string; lastMessage: Message | null }[] = [];
     try {
-      const msgs: Message[] = await chatService.getAllMessages();
+      const res = await chatService.getConversations();
+      if (res.success && Array.isArray(res.data)) {
+        const convs = res.data.map((c: any) => ({
+          userId: String(c.userId),
+          userName: c.userName || 'Customer',
+          lastMessage: c.lastMessage
+            ? {
+                id: '',
+                conversationId: String(c.userId),
+                senderId: '',
+                senderName: '',
+                senderRole: 'customer',
+                message: c.lastMessage,
+                timestamp: c.lastMessageAt || '',
+                read: true
+              }
+            : null
+        }));
 
-      const grouped = msgs.reduce<Record<string, Message[]>>((acc, msg) => {
-        if (!acc[msg.conversationId]) acc[msg.conversationId] = [];
-        acc[msg.conversationId].push(msg);
-        return acc;
-      }, {});
-
-      Object.entries(grouped).forEach(([userId, list]) => {
-        if (String(userId) === String(auth.user?.id)) return;
-        const customerMsg = list.find(m => m.senderRole === 'customer');
-        if (customerMsg) {
-          const lastMsg = list[list.length - 1];
-          convs.push({ userId, userName: customerMsg.senderName, lastMessage: lastMsg });
+        setConversations(convs);
+        if (convs.length > 0 && !selectedUserId) {
+          setSelectedUserId(convs[0].userId);
         }
-      });
+      }
     } catch (error) {
-      console.error('AdminChat: loadConversations failed', error);
-    }
-
-    // Sort by last message time
-    convs.sort((a, b) => {
-      if (!a.lastMessage) return 1;
-      if (!b.lastMessage) return -1;
-      return new Date(b.lastMessage.timestamp).getTime() - new Date(a.lastMessage.timestamp).getTime();
-    });
-
-    setConversations(convs);
-    
-    // Auto-select first conversation
-    if (convs.length > 0 && !selectedUserId) {
-      setSelectedUserId(convs[0].userId);
+      console.error('AdminChat: failed to load conversations', error);
     }
   };
 
   const loadMessages = async (userId: string) => {
     try {
-      const msgs: Message[] = await chatService.getMessages(userId);
-      const previousLength = messages.length;
-      const prevLastId = messages[messages.length - 1]?.id;
-      const nextLastId = msgs[msgs.length - 1]?.id;
-
-      const changed = previousLength !== msgs.length || prevLastId !== nextLastId;
-      if (changed) {
-        setMessages(msgs);
-      }
-
-      if (changed && msgs.length > previousLength && isAtBottom) {
-        setTimeout(() => scrollToBottom(), 100);
+      const res = await chatService.getMessages(userId);
+      if (res.success && Array.isArray(res.data)) {
+        setMessages(res.data);
+      } else {
+        setMessages([]);
       }
     } catch (error) {
       console.error(`Error loading messages for ${userId}:`, error);
@@ -126,23 +113,23 @@ const AdminChat = () => {
     e.preventDefault();
     if (!newMessage.trim() || !selectedUserId || !auth.user) return;
 
-    const payload = {
-      conversationId: selectedUserId,
-      senderId: auth.user.id,
-      senderName: auth.user.name,
-      senderRole: 'admin' as const,
-      message: newMessage.trim()
-    };
-
     try {
-      const saved = await chatService.sendMessage(payload);
-      const updatedMessages = [...messages, saved];
-      setMessages(updatedMessages);
+      const res = await chatService.sendMessage({
+        userId: selectedUserId,
+        senderId: auth.user.id,
+        senderName: auth.user.name,
+        senderRole: 'admin',
+        message: newMessage.trim()
+      });
+
+      if (res.success && res.data) {
+        setMessages(prev => [...prev, res.data]);
+      }
       setNewMessage('');
       loadConversations();
-      setTimeout(() => scrollToBottom(), 100);
     } catch (error) {
-      console.error('AdminChat: send failed', error);
+      console.error('AdminChat: send message failed', error);
+      alert('Không gửi được tin nhắn. Vui lòng thử lại.');
     }
   };
 

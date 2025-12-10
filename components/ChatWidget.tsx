@@ -16,12 +16,29 @@ const ChatWidget = () => {
   const conversationId = auth.user?.id || '';
 
   useEffect(() => {
+    let interval: NodeJS.Timeout | undefined;
+
+    const fetchMessages = async () => {
+      if (!conversationId) return;
+      try {
+        const res = await chatService.getMessages(conversationId);
+        if (res.success && Array.isArray(res.data)) {
+          setMessages(res.data);
+        }
+      } catch (e) {
+        console.error('ChatWidget: fetch messages error', e);
+      }
+    };
+
     if (isOpen && !isMinimized) {
-      loadMessages();
-      const interval = setInterval(loadMessages, 1000);
-      return () => clearInterval(interval);
+      fetchMessages();
+      interval = setInterval(fetchMessages, 1500);
     }
-  }, [isOpen, isMinimized]);
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isOpen, isMinimized, conversationId]);
 
   useEffect(() => {
     // Chỉ auto scroll khi user đang ở gần đáy (sticky scroll)
@@ -45,36 +62,26 @@ const ChatWidget = () => {
     setIsAtBottom(distanceFromBottom < 120);
   };
 
-  const loadMessages = async () => {
-    if (!conversationId) return;
-    try {
-      const msgs = await chatService.getMessages(conversationId);
-      setMessages(msgs);
-    } catch (error) {
-      console.error('ChatWidget: loadMessages failed', error);
-    }
-  };
-
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !auth.user) return;
 
-    const payload = {
-      conversationId,
-      senderId: auth.user.id,
-      senderName: auth.user.name,
-      senderRole: (auth.user.role as Message['senderRole']) || 'customer',
-      message: newMessage.trim()
-    };
-
     try {
-      const saved = await chatService.sendMessage(payload);
-      const updatedMessages = [...messages, saved];
-      setMessages(updatedMessages);
+      const payload = {
+        userId: conversationId,
+        senderId: auth.user.id,
+        senderName: auth.user.name,
+        senderRole: (auth.user.role as Message['senderRole']) || 'customer',
+        message: newMessage.trim()
+      };
+      const res = await chatService.sendMessage(payload);
+      if (res.success && res.data) {
+        setMessages(prev => [...prev, res.data]);
+      }
       setNewMessage('');
-      setTimeout(() => scrollToBottom(), 100);
     } catch (error) {
-      console.error('ChatWidget: send failed', error);
+      console.error('ChatWidget: send message failed', error);
+      alert('Không gửi được tin nhắn. Vui lòng thử lại.');
     }
   };
 
@@ -91,7 +98,6 @@ const ChatWidget = () => {
           onClick={() => {
             setIsOpen(true);
             setIsMinimized(false);
-            loadMessages();
           }}
           className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-r from-brand-cyan to-brand-ocean text-white rounded-full shadow-2xl hover:shadow-3xl transition-all duration-300 hover:scale-110 z-50 flex items-center justify-center group"
           aria-label="Open chat"
