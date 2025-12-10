@@ -107,6 +107,11 @@ switch ($method) {
                 sendJSON(['success' => false, 'message' => "Field '$field' is required"], 400);
             }
         }
+
+        $status = $data['status'] ?? 'pending';
+        if (!in_array($status, ['pending', 'paid', 'delivered'])) {
+            $status = 'pending';
+        }
         
         try {
             $pdo->beginTransaction();
@@ -114,14 +119,15 @@ switch ($method) {
             // Create order
             $stmt = $pdo->prepare("
                 INSERT INTO orders (user_id, user_name, user_phone, total_amount, status)
-                VALUES (?, ?, ?, ?, 'pending')
+                VALUES (?, ?, ?, ?, ?)
             ");
             
             $stmt->execute([
                 $data['user_id'],
                 $data['user_name'],
                 $data['user_phone'],
-                $data['total_amount']
+                $data['total_amount'],
+                $status
             ]);
             
             $orderId = $pdo->lastInsertId();
@@ -132,15 +138,37 @@ switch ($method) {
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             ");
             
+            // Pre-check product existence to avoid FK failures
+            $productCheck = $pdo->prepare("SELECT id FROM products WHERE id = ? LIMIT 1");
+            
             foreach ($data['items'] as $item) {
+                $productId = null;
+                if (isset($item['id']) && is_numeric($item['id'])) {
+                    $pid = (int)$item['id'];
+                    $productCheck->execute([$pid]);
+                    if ($productCheck->fetchColumn()) {
+                        $productId = $pid;
+                    }
+                }
+
+                $price = $item['offerPrice'] ?? $item['price'];
+                $subtotal = $price * $item['quantity'];
+
+                // Limit image length to avoid truncation
+                $img = $item['image'] ?? null;
+                if ($img && strlen($img) > 500) {
+                    // Likely a data URI/base64, store null to avoid 1406 errors
+                    $img = null;
+                }
+
                 $itemStmt->execute([
                     $orderId,
-                    $item['id'],
+                    $productId, // can be null if not found to prevent FK error
                     $item['name'],
-                    $item['image'] ?? null,
+                    $img,
                     $item['quantity'],
-                    $item['offerPrice'] ?? $item['price'],
-                    ($item['offerPrice'] ?? $item['price']) * $item['quantity']
+                    $price,
+                    $subtotal
                 ]);
             }
             

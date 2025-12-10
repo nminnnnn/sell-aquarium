@@ -524,18 +524,43 @@ const ProductManager = () => {
 const OrderManager = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [newOrdersCount, setNewOrdersCount] = useState(0);
+  const lastCountRef = React.useRef(0);
 
   useEffect(() => {
     loadOrders();
   }, []);
 
+  // Sync when new orders come in (storage event + polling)
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'charan_orders_sync') {
+        loadOrders();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    const interval = setInterval(loadOrders, 2000);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      clearInterval(interval);
+    };
+  }, []);
+
   const loadOrders = async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await orderService.getAll();
       setOrders(data);
-    } catch (error) {
-      console.error('Failed to load orders:', error);
+      // Detect new orders compared to last loaded count
+      if (data.length > lastCountRef.current) {
+        setNewOrdersCount(data.length - lastCountRef.current);
+      }
+      lastCountRef.current = data.length;
+    } catch (err: any) {
+      console.error('Failed to load orders:', err);
+      setError(err?.message || 'Failed to load orders');
     } finally {
       setLoading(false);
     }
@@ -556,10 +581,28 @@ const OrderManager = () => {
 
   return (
     <div>
+      {newOrdersCount > 0 && (
+        <div className="mb-4 rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800 flex justify-between items-center">
+          <span> Có {newOrdersCount} đơn hàng mới. </span>
+          <button
+            onClick={() => setNewOrdersCount(0)}
+            className="text-green-700 font-semibold hover:underline"
+          >
+            Đã xem
+          </button>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
         <h2 className="text-2xl font-bold text-gray-900">Order Management</h2>
         <p className="text-gray-500 mt-1">Manage and track customer orders</p>
       </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+          {error}
+        </div>
+      )}
 
       {loading ? (
         <div className="bg-white rounded-xl shadow-sm p-12 text-center">
@@ -582,7 +625,7 @@ const OrderManager = () => {
                     {order.userName} • {order.userPhone}
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
-                    {new Date(order.date).toLocaleString()}
+                    {new Date(order.date || (order as any).created_at || (order as any).updated_at || Date.now()).toLocaleString()}
                   </p>
                 </div>
                 <span className={`px-4 py-2 rounded-full text-xs font-bold uppercase ${

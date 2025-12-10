@@ -7,7 +7,7 @@ import { orderService } from '../services/api';
 const Cart = () => {
   const { cart, removeFromCart, addToCart, cartTotal, auth, clearCart } = useApp();
   const [address, setAddress] = useState(auth.user?.address || '');
-  const paymentsEnabled = false; // temporarily disable checkout
+  const paymentsEnabled = true; // enable checkout with instant confirmation
 
   const handleQuantityChange = (id: string, delta: number) => {
     const item = cart.find(i => i.id === id);
@@ -21,11 +21,6 @@ const Cart = () => {
   };
 
   const handleCheckout = async () => {
-    if (!paymentsEnabled) {
-      alert('Thanh toán tạm thời bị vô hiệu hóa. Vui lòng liên hệ cửa hàng để đặt hàng.');
-      return;
-    }
-
     if (!auth.user) {
       alert('Please login to continue');
       window.location.hash = '#/login';
@@ -42,31 +37,17 @@ const Cart = () => {
       userPhone: auth.user.phone,
       items: cart,
       totalAmount: cartTotal,
-      status: 'pending' as const,
+      status: 'paid' as const, // tạm xác nhận thành công
       date: new Date().toISOString()
     };
 
     await orderService.create(newOrder);
 
-    // 2. Format WhatsApp Message
-    const itemsList = cart.map((item, i) => 
-      `${i + 1}. ${item.name} x ${item.quantity} = ₹${(item.offerPrice || item.price) * item.quantity}`
-    ).join('%0A');
-
-    const message = 
-      `Hello *${STORE_DETAILS.name}*, I want to place an order:%0A%0A` +
-      `*Customer:* ${auth.user.name}%0A` +
-      `*Phone:* ${auth.user.phone}%0A%0A` +
-      `*Products:*%0A${itemsList}%0A%0A` +
-      `*Total Amount:* ₹${cartTotal}%0A` +
-      `*Address:* ${address || 'Pick up from store'}%0A%0A` +
-      `Please confirm my order.`;
-
     // 3. Clear Cart
     clearCart();
 
-    // 4. Redirect
-    window.open(`https://wa.me/${STORE_DETAILS.whatsapp}?text=${message}`, '_blank');
+    // 4. Show success (no redirect)
+    alert('Đặt hàng thành công! Chúng tôi sẽ liên hệ xác nhận.');
   };
 
   if (cart.length === 0) {
@@ -144,20 +125,13 @@ const Cart = () => {
 
           <button 
             onClick={handleCheckout}
-            disabled={!paymentsEnabled}
-            className={`w-full py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition ${
-              paymentsEnabled 
-                ? 'bg-green-500 hover:bg-green-600 text-white' 
-                : 'bg-gray-300 text-gray-600 cursor-not-allowed'
-            }`}
+            className="w-full py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition bg-green-500 hover:bg-green-600 text-white"
           >
             <MessageCircle size={20} />
-            {paymentsEnabled ? 'Purchase via WhatsApp' : 'Thanh toán đang tạm khóa'}
+            Xác nhận đơn hàng
           </button>
           <p className="text-xs text-center text-gray-500 mt-3">
-            {paymentsEnabled
-              ? `Clicking purchase will redirect you to WhatsApp to confirm your order with ${STORE_DETAILS.name}.`
-              : 'Thanh toán qua WhatsApp đang tạm thời vô hiệu hóa. Vui lòng liên hệ cửa hàng để đặt hàng.'}
+            Đơn hàng sẽ được xác nhận tạm thời. Chúng tôi sẽ liên hệ để hoàn tất.
           </p>
         </div>
       </div>

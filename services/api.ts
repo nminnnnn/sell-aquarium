@@ -4,9 +4,25 @@ import { INITIAL_PRODUCTS } from '../constants';
 const API_BASE = 'http://localhost:4000';
 const AUTH_API = 'http://localhost:8000/api/auth.php';
 const CHAT_API = 'http://localhost:8000/api/chat.php';
+const ORDERS_API = 'http://localhost:8000/api/orders.php';
 const PRODUCTS_SYNC_KEY = 'charan_products_sync';
-const ORDERS_KEY = 'charan_orders';
 const CURRENT_USER_KEY = 'charan_current_user';
+
+// --- Fetch helper that fails fast on non-2xx and bad JSON ---
+const fetchJson = async (url: string, options?: RequestInit) => {
+  const res = await fetch(url, options);
+  let data: any = null;
+  try {
+    data = await res.json();
+  } catch (e) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Request failed (${res.status}): ${text || 'Invalid JSON'}`);
+  }
+  if (!res.ok) {
+    throw new Error(data?.message || `Request failed (${res.status})`);
+  }
+  return data;
+};
 
 // --- Helpers ---
 const getStorage = <T>(key: string, defaultVal: T): T => {
@@ -27,18 +43,47 @@ const broadcastProductsSync = () => {
   }
 };
 
+// --- Order normalizer (snake_case -> camelCase) ---
+const normalizeOrder = (raw: any): Order => {
+  const items = Array.isArray(raw.items)
+    ? raw.items
+    : (Array.isArray(raw.items_json) ? raw.items_json : raw.items || []);
+
+  const mappedItems = (items || []).map((it: any) => ({
+    id: String(it.id ?? ''),
+    quantity: Number(it.quantity ?? 0),
+    price: Number(it.price ?? 0),
+    offerPrice: it.offerPrice !== undefined ? Number(it.offerPrice) : undefined,
+    name: it.name ?? it.product_name ?? '',
+    image: it.image ?? it.product_image ?? '',
+    category: (it.category as any) ?? '',
+    scientificName: it.scientificName ?? '',
+    stock: Number(it.stock ?? 0),
+    origin: it.origin ?? '',
+    description: it.description ?? '',
+    isNew: Boolean(it.is_new ?? it.isNew ?? false),
+  }));
+
+  return {
+    id: String(raw.id ?? ''),
+    userId: String(raw.user_id ?? raw.userId ?? ''),
+    userName: raw.user_name ?? raw.userName ?? '',
+    userPhone: raw.user_phone ?? raw.userPhone ?? '',
+    items: mappedItems,
+    totalAmount: Number(raw.total_amount ?? raw.totalAmount ?? 0),
+    status: raw.status ?? 'pending',
+    date: raw.date ?? raw.created_at ?? raw.updated_at ?? new Date().toISOString()
+  };
+};
+
 // --- Auth Service ---
 export const authService = {
   login: async (username: string, password: string): Promise<User | null> => {
-    const res = await fetch(AUTH_API, {
+    const data = await fetchJson(AUTH_API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'login', username, password })
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      throw new Error(data.message || 'Login failed');
-    }
     const user: User = data.user;
     setStorage(CURRENT_USER_KEY, user);
     return user;
@@ -52,7 +97,7 @@ export const authService = {
     address?: string;
   }): Promise<User> => {
     const { username, password, name = 'New User', phone = '', address = '' } = data;
-    const res = await fetch(AUTH_API, {
+    const result = await fetchJson(AUTH_API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -64,10 +109,6 @@ export const authService = {
         address
       })
     });
-    const result = await res.json();
-    if (!res.ok || !result.success) {
-      throw new Error(result.message || 'Registration failed');
-    }
     const user: User = result.user;
     setStorage(CURRENT_USER_KEY, user);
     return user;
@@ -161,28 +202,38 @@ export const productService = {
 // --- Order Service ---
 export const orderService = {
   create: async (order: Order): Promise<Order> => {
-    const orders = getStorage<Order[]>(ORDERS_KEY, []);
-    orders.push(order);
-    setStorage(ORDERS_KEY, orders);
-    return order;
+    const payload = {
+      user_id: order.userId,
+      user_name: order.userName,
+      user_phone: order.userPhone,
+      items: order.items,
+      total_amount: order.totalAmount,
+      status: order.status || 'pending'
+    };
+    const data = await fetchJson(ORDERS_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    return { ...order, id: data.order_id?.toString?.() || order.id };
   },
 
   getAll: async (): Promise<Order[]> => {
-    return getStorage<Order[]>(ORDERS_KEY, []);
+    const data = await fetchJson(`${ORDERS_API}?all=1&user_id=admin`);
+    return (data.orders || []).map(normalizeOrder);
   },
 
   getUserOrders: async (userId: string): Promise<Order[]> => {
-    const orders = getStorage<Order[]>(ORDERS_KEY, []);
-    return orders.filter(o => o.userId === userId);
+    const data = await fetchJson(`${ORDERS_API}?user_id=${encodeURIComponent(userId)}`);
+    return (data.orders || []).map(normalizeOrder);
   },
   
   updateStatus: async (orderId: string, status: Order['status']) => {
-      const orders = getStorage<Order[]>(ORDERS_KEY, []);
-      const order = orders.find(o => o.id === orderId);
-      if(order) {
-          order.status = status;
-          setStorage(ORDERS_KEY, orders);
-      }
+      await fetchJson(ORDERS_API, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: orderId, status })
+      });
   }
 };
 
