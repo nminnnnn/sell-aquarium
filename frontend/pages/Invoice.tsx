@@ -54,8 +54,8 @@ const Invoice = ({ order }: { order: Order }) => {
             <tr key={idx} className="border-b border-gray-100">
               <td className="py-4 text-gray-900">{item.name}</td>
               <td className="py-4 text-right text-gray-600">{item.quantity}</td>
-              <td className="py-4 text-right text-gray-600">₹{item.offerPrice || item.price}</td>
-              <td className="py-4 text-right text-gray-900 font-medium">₹{(item.offerPrice || item.price) * item.quantity}</td>
+              <td className="py-4 text-right text-gray-600">đ{item.offerPrice || item.price}</td>
+              <td className="py-4 text-right text-gray-900 font-medium">đ{(item.offerPrice || item.price) * item.quantity}</td>
             </tr>
           ))}
         </tbody>

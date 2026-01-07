@@ -153,7 +153,14 @@ try {
             if ($stmt->rowCount() > 0) {
                 sendJSON(['success' => true, 'message' => 'Product updated']);
             } else {
-                sendJSON(['success' => false, 'message' => 'Product not found'], 404);
+                // Check if product exists (might be no changes)
+                $checkStmt = $pdo->prepare("SELECT id FROM products WHERE id = ?");
+                $checkStmt->execute([$productId]);
+                if ($checkStmt->fetchColumn()) {
+                    sendJSON(['success' => true, 'message' => 'No changes applied']);
+                } else {
+                    sendJSON(['success' => false, 'message' => 'Product not found'], 404);
+                }
             }
         } catch (PDOException $e) {
             error_log("Update Product Error: " . $e->getMessage());

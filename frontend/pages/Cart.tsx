@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, MessageCircle, Plus, Minus, Loader, Phone, Heart } from 'lucide-react';
+import { Trash2, MessageCircle, Plus, Minus, Loader, Phone } from 'lucide-react';
 import { useApp } from '../context';
 import { STORE_DETAILS } from '../constants';
-import { orderService, shippingService, favoriteService } from '../services/api';
+import { orderService, shippingService } from '../services/api';
 import { getImageUrl } from '../utils/imageUtils';
 import AddressForm, { AddressDetails } from '../components/AddressForm';
 
@@ -17,47 +17,12 @@ const Cart = () => {
   const [shippingDistance, setShippingDistance] = useState<number | null>(null);
   const [shippingDuration, setShippingDuration] = useState<number | null>(null);
   const [addressDetails, setAddressDetails] = useState<AddressDetails | null>(null);
-  const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const paymentsEnabled = true; // enable checkout with instant confirmation
   
   // Google Maps API Key (optional - leave empty to use fallback)
   const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
   
   const grandTotal = cartTotal + shippingCost;
-
-  // Load favorites
-  useEffect(() => {
-    if (auth.user?.id) {
-      favoriteService.getFavorites(auth.user.id).then(favs => {
-        setFavorites(new Set(favs));
-      }).catch(err => {
-        console.error('Failed to load favorites:', err);
-      });
-    }
-  }, [auth.user?.id]);
-
-  const handleToggleFavorite = async (productId: string) => {
-    if (!auth.user?.id) {
-      alert('Vui lòng đăng nhập để thêm vào yêu thích');
-      return;
-    }
-    const isFavorited = favorites.has(productId);
-    try {
-      await favoriteService.toggleFavorite(auth.user.id, productId, isFavorited);
-      setFavorites(prev => {
-        const newSet = new Set(prev);
-        if (isFavorited) {
-          newSet.delete(productId);
-        } else {
-          newSet.add(productId);
-        }
-        return newSet;
-      });
-    } catch (error) {
-      console.error('Failed to toggle favorite:', error);
-      alert('Không thể thêm vào yêu thích. Vui lòng thử lại.');
-    }
-  };
 
   const calculateShipping = async () => {
     const trimmedAddress = address.trim();
@@ -195,24 +160,7 @@ const Cart = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="md:col-span-2 space-y-4">
           {cart.map(item => (
-            <div key={item.id} className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex items-center gap-4 relative">
-              {/* Heart icon ở góc trên bên phải của card */}
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleToggleFavorite(item.id);
-                }}
-                className={`absolute top-2 right-2 p-2 rounded-full shadow-lg z-20 transition-all ${
-                  favorites.has(item.id)
-                    ? 'bg-red-500 text-white hover:bg-red-600'
-                    : 'bg-white text-gray-400 hover:bg-white hover:text-red-500 border-2 border-gray-300'
-                }`}
-                title={favorites.has(item.id) ? 'Xóa khỏi yêu thích' : 'Thêm vào yêu thích'}
-              >
-                <Heart className={`h-5 w-5 ${favorites.has(item.id) ? 'fill-current' : ''}`} strokeWidth={2.5} />
-              </button>
-              
+            <div key={item.id} className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex items-center gap-4">
               <div className="relative flex-shrink-0">
                 <img src={getImageUrl(item.image)} alt={item.name} className="w-20 h-20 object-cover rounded-md" />
               </div>
@@ -220,7 +168,7 @@ const Cart = () => {
               <div className="flex-1">
                 <h3 className="font-bold text-gray-900">{item.name}</h3>
                 <p className="text-gray-500 text-sm">{item.category}</p>
-                <div className="font-bold text-brand-cyan mt-1">₹{item.offerPrice || item.price}</div>
+                <div className="font-bold text-brand-cyan mt-1">đ{item.offerPrice || item.price}</div>
               </div>
 
               <div className="flex items-center space-x-3 bg-gray-50 rounded-lg p-1">

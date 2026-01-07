@@ -269,11 +269,11 @@ const ProductCard: React.FC<{
           <div>
             {product.offerPrice ? (
               <div className="flex flex-col">
-                <span className="text-gray-400 text-xs line-through">₹{product.price}</span>
-                <span className="text-xl font-bold text-gray-900">₹{product.offerPrice}</span>
+                <span className="text-gray-400 text-xs line-through">đ{product.price}</span>
+                <span className="text-xl font-bold text-gray-900">đ{product.offerPrice}</span>
               </div>
             ) : (
-              <span className="text-xl font-bold text-gray-900">₹{product.price}</span>
+              <span className="text-xl font-bold text-gray-900">đ{product.price}</span>
             )}
           </div>
           

@@ -1,30 +1,26 @@
 /**
- * Image URL Helper
- * Converts relative image paths to absolute URLs for backend images
+ * Utility function to construct full image URL from image path
+ * Handles both absolute URLs (http/https) and relative paths
  */
 
-const BACKEND_URL = 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
-/**
- * Converts image path to full URL
- * - Absolute URLs (http://...) are returned as is
- * - Relative paths starting with /uploads/ are converted to backend URL
- * - Other relative paths (like /img/...) are returned as is (served by frontend)
- */
-export const getImageUrl = (imagePath: string | undefined | null): string => {
+export function getImageUrl(imagePath: string | undefined | null): string {
+  // Return empty string if no image path
   if (!imagePath) return '';
   
-  // If already absolute URL (http:// or https://), return as is
+  // If already an absolute URL (starts with http:// or https://), return as is
   if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
     return imagePath;
   }
   
-  // If relative path starting with /uploads/, convert to backend URL
-  if (imagePath.startsWith('/uploads/')) {
-    return `${BACKEND_URL}${imagePath}`;
+  // If starts with /, it's already a root-relative path, just prepend API base
+  if (imagePath.startsWith('/')) {
+    return `${API_BASE_URL}${imagePath}`;
   }
   
-  // Other relative paths (like /img/...) return as is (served by frontend)
-  return imagePath;
-};
+  // Otherwise, it's a relative path, add / if needed
+  const needsSlash = imagePath.startsWith('/') ? '' : '/';
+  return `${API_BASE_URL}${needsSlash}${imagePath}`;
+}
 

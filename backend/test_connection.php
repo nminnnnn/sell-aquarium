@@ -51,7 +51,7 @@ try {
         echo "<td>" . htmlspecialchars($product['id']) . "</td>";
         echo "<td>" . htmlspecialchars($product['name']) . "</td>";
         echo "<td>" . htmlspecialchars($product['category']) . "</td>";
-        echo "<td>₹" . number_format($product['price'], 2) . "</td>";
+        echo "<td>đ" . number_format($product['price'], 2) . "</td>";
         echo "<td>" . htmlspecialchars($product['stock']) . "</td>";
         echo "</tr>";
     }

@@ -27,7 +27,7 @@ const Navbar = () => {
     <nav className="bg-brand-deep text-white sticky top-0 z-50 shadow-xl border-b border-brand-ocean/30">
       {/* Top Bar */}
       {/* <div className="bg-brand-ocean px-4 py-1 text-xs text-center font-medium tracking-wide">
-        🚀 FREE DELIVERY on orders above ₹2000 in Tirupati | 📞 Support: {STORE_DETAILS.phone}
+        🚀 FREE DELIVERY on orders above đ2000 in Tirupati | 📞 Support: {STORE_DETAILS.phone}
       </div> */}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

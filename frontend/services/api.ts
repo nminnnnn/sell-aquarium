@@ -7,8 +7,8 @@ const CHAT_API = 'http://localhost:8000/api/chat.php';
 const ORDERS_API = 'http://localhost:8000/api/orders.php';
 const REVIEWS_API = 'http://localhost:8000/api/reviews.php';
 const PRODUCTS_API = 'http://localhost:8000/api/products.php';
-const SHIPPING_API = 'http://localhost:8000/api/shipping.php';
 const FAVORITES_API = 'http://localhost:8000/api/favorites.php';
+const SHIPPING_API = 'http://localhost:8000/api/shipping.php';
 const PRODUCTS_SYNC_KEY = 'charan_products_sync';
 const CURRENT_USER_KEY = 'charan_current_user';
 
@@ -54,8 +54,7 @@ const normalizeOrder = (raw: any): Order => {
     : (Array.isArray(raw.items_json) ? raw.items_json : raw.items || []);
 
   const mappedItems = (items || []).map((it: any) => ({
-    // Use product_id for id (needed for reviews), fallback to id if product_id not available
-    id: String(it.product_id ?? it.productId ?? it.id ?? ''),
+    id: String(it.id ?? ''),
     quantity: Number(it.quantity ?? 0),
     price: Number(it.price ?? 0),
     offerPrice: it.offerPrice !== undefined ? Number(it.offerPrice) : undefined,
@@ -69,14 +68,6 @@ const normalizeOrder = (raw: any): Order => {
     isNew: Boolean(it.is_new ?? it.isNew ?? false),
   }));
 
-  // Calculate subtotal from items
-  const subtotal = mappedItems.reduce((sum, item) => {
-    return sum + (item.offerPrice || item.price) * item.quantity;
-  }, 0);
-  
-  const shippingCost = raw.shipping_cost !== undefined ? Number(raw.shipping_cost) : 
-                       (raw.shippingCost !== undefined ? Number(raw.shippingCost) : 0);
-  
   return {
     id: String(raw.id ?? ''),
     userId: String(raw.user_id ?? raw.userId ?? ''),
@@ -85,9 +76,7 @@ const normalizeOrder = (raw: any): Order => {
     items: mappedItems,
     totalAmount: Number(raw.total_amount ?? raw.totalAmount ?? 0),
     status: raw.status ?? 'pending',
-    date: raw.date ?? raw.created_at ?? raw.updated_at ?? new Date().toISOString(),
-    shippingAddress: raw.shipping_address ?? raw.shippingAddress ?? undefined,
-    shippingCost: shippingCost > 0 ? shippingCost : undefined
+    date: raw.date ?? raw.created_at ?? raw.updated_at ?? new Date().toISOString()
   };
 };
 
@@ -215,7 +204,7 @@ export const productService = {
   },
 
   update: async (product: Product): Promise<Product> => {
-    await fetchJson(PRODUCTS_API, {
+    const res = await fetchJson(PRODUCTS_API, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -233,12 +222,12 @@ export const productService = {
       })
     });
     broadcastProductsSync();
-    return product;
+    return product; // Return the product as-is since API doesn't return updated product
   },
 
   delete: async (id: string) => {
-    await fetchJson(`${PRODUCTS_API}?id=${encodeURIComponent(id)}`, {
-      method: 'DELETE'
+    await fetchJson(`${PRODUCTS_API}?id=${encodeURIComponent(id)}`, { 
+      method: 'DELETE' 
     });
     broadcastProductsSync();
   }
@@ -253,9 +242,7 @@ export const orderService = {
       user_phone: order.userPhone,
       items: order.items,
       total_amount: order.totalAmount,
-      status: order.status || 'pending',
-      shipping_address: order.shippingAddress || null,
-      shipping_cost: order.shippingCost || 0
+      status: order.status || 'pending'
     };
     const data = await fetchJson(ORDERS_API, {
       method: 'POST',
@@ -317,18 +304,11 @@ export const chatService = {
 
 // --- Review Service ---
 export const reviewService = {
-  getReviews: async (productId: string, userId?: string): Promise<{ reviews: Review[], canReview: boolean }> => {
-    let url = `${REVIEWS_API}?productId=${encodeURIComponent(productId)}`;
-    if (userId) {
-      url += `&userId=${encodeURIComponent(userId)}`;
-    }
-    const res = await fetch(url);
+  getReviews: async (productId: string): Promise<Review[]> => {
+    const res = await fetch(`${REVIEWS_API}?productId=${encodeURIComponent(productId)}`);
     if (!res.ok) throw new Error('Failed to fetch reviews');
     const data = await res.json();
-    return {
-      reviews: data.reviews || [],
-      canReview: data.canReview || false
-    };
+    return data.reviews || [];
   },
 
   createReview: async (review: {
@@ -338,50 +318,22 @@ export const reviewService = {
     rating: number;
     comment?: string;
   }): Promise<Review> => {
-    try {
-      const res = await fetch(REVIEWS_API, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(review)
-      });
-      
-      if (!res.ok) {
-        const error = await res.json().catch(() => ({ message: 'Failed to create review' }));
-        throw new Error(error.message || 'Failed to create review');
-      }
-      
-      const data = await res.json();
-      return data.review;
-    } catch (error: any) {
-      throw error;
-    }
-  }
-};
-
-// --- Shipping Service ---
-export const shippingService = {
-  calculateShipping: async (address: string): Promise<{
-    shippingCost: number;
-    distance?: number;
-    duration?: number;
-    storeAddress: string;
-    deliveryAddress: string;
-    calculationMethod?: 'distance_based' | 'fallback';
-  }> => {
-    const res = await fetchJson(SHIPPING_API, {
+    const res = await fetchJson(REVIEWS_API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ address })
+      body: JSON.stringify(review)
     });
-    return res;
+    return res.review;
   }
 };
 
-// --- Favorites Service ---
+// --- Favorite Service ---
 export const favoriteService = {
   getFavorites: async (userId: string): Promise<string[]> => {
-    const res = await fetchJson(`${FAVORITES_API}?userId=${encodeURIComponent(userId)}`);
-    return res.favorites || [];
+    const data = await fetchJson(`${FAVORITES_API}?userId=${encodeURIComponent(userId)}`);
+    // Backend returns { success: true, favorites: [productId1, productId2, ...] }
+    // Convert numbers to strings to match Product.id type
+    return (data.favorites || []).map((id: number | string) => String(id));
   },
 
   addFavorite: async (userId: string, productId: string): Promise<void> => {
@@ -406,5 +358,27 @@ export const favoriteService = {
     } else {
       await favoriteService.addFavorite(userId, productId);
     }
+  }
+};
+
+// --- Shipping Service ---
+export const shippingService = {
+  calculateShipping: async (address: string): Promise<{
+    shippingCost: number;
+    distance?: number;
+    duration?: number;
+    calculationMethod?: string;
+  }> => {
+    const data = await fetchJson(SHIPPING_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address })
+    });
+    return {
+      shippingCost: data.shippingCost || 0,
+      distance: data.distance,
+      duration: data.duration,
+      calculationMethod: data.calculationMethod
+    };
   }
 };

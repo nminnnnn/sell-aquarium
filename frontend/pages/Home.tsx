@@ -174,9 +174,9 @@ const Home = () => {
                 <p className="text-xs text-brand-ocean font-bold uppercase mb-1">{product.category}</p>
                 <h3 className="font-bold text-gray-900 text-lg mb-1 truncate">{product.name}</h3>
                 <div className="flex items-end gap-2 mt-2">
-                  <span className="text-xl font-bold text-gray-900">₹{product.offerPrice || product.price}</span>
+                  <span className="text-xl font-bold text-gray-900">đ{product.offerPrice || product.price}</span>
                   {product.offerPrice && (
-                    <span className="text-sm text-gray-400 line-through mb-1">₹{product.price}</span>
+                    <span className="text-sm text-gray-400 line-through mb-1">đ{product.price}</span>
                   )}
                 </div>
               </div>
@@ -227,9 +227,9 @@ const Home = () => {
                   <p className="text-xs text-brand-ocean font-bold uppercase mb-1">{product.category}</p>
                   <h3 className="font-bold text-gray-900 text-lg mb-1 truncate">{product.name}</h3>
                   <div className="flex items-end gap-2 mt-2">
-                    <span className="text-xl font-bold text-gray-900">₹{product.offerPrice || product.price}</span>
+                    <span className="text-xl font-bold text-gray-900">đ{product.offerPrice || product.price}</span>
                     {product.offerPrice && (
-                      <span className="text-sm text-gray-400 line-through mb-1">₹{product.price}</span>
+                      <span className="text-sm text-gray-400 line-through mb-1">đ{product.price}</span>
                     )}
                   </div>
                 </div>
@@ -260,7 +260,7 @@ const Home = () => {
                       (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x300?text=No+Image';
                     }}/>
                     <h4 className="text-white font-bold">{fish.name}</h4>
-                    <p className="text-brand-cyan mt-1">₹{fish.offerPrice || fish.price}</p>
+                    <p className="text-brand-cyan mt-1">đ{fish.offerPrice || fish.price}</p>
                  </div>
                ))}
             </div>

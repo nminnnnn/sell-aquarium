@@ -214,8 +214,21 @@ switch ($method) {
                     }
                 }
 
-                $price = $item['offerPrice'] ?? $item['price'];
-                $subtotal = $price * $item['quantity'];
+               // 1. Hàm làm sạch giá (Xóa bỏ chữ đ, ₹, dấu phẩy, chỉ giữ lại số)
+$rawPrice = $item['price'];
+// Ưu tiên offerPrice CHỈ KHI nó tồn tại và lớn hơn 0
+if (isset($item['offerPrice']) && is_numeric($item['offerPrice']) && $item['offerPrice'] > 0) {
+    $rawPrice = $item['offerPrice'];
+}
+
+// Chuyển đổi về dạng số thuần túy (float)
+// Preg_replace sẽ xóa hết các ký tự không phải số và dấu chấm thập phân
+$price = (float) preg_replace('/[^0-9.]/', '', (string)$rawPrice);
+
+// 2. Tính lại subtotal từ phía Server (An toàn hơn tin tưởng Frontend)
+$quantity = (int)$item['quantity'];
+$subtotal = $price * $quantity;
+
 
                 // Limit image length to avoid truncation
                 $img = $item['image'] ?? null;
@@ -250,7 +263,7 @@ switch ($method) {
         } catch (PDOException $e) {
             $pdo->rollBack();
             error_log("Create Order Error: " . $e->getMessage());
-            sendJSON(['success' => false, 'message' => 'Failed to create order'], 500);
+            sendJSON(['success' => false, 'message' => 'Lỗi SQL: ' . $e->getMessage()], 500);
         }
         break;
         

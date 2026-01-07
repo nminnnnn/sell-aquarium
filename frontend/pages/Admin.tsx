@@ -352,7 +352,7 @@ const ProductManager = () => {
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Price (₹) <span className="text-red-500">*</span>
+                  Price (đ) <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -367,7 +367,7 @@ const ProductManager = () => {
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Offer Price (₹)
+                  Offer Price (đ)
                 </label>
                 <input
                   type="number"
@@ -567,11 +567,11 @@ const ProductManager = () => {
                       <div className="text-sm font-semibold text-gray-900">
                         {product.offerPrice ? (
                           <>
-                            <span className="line-through text-gray-400 mr-2">₹{product.price.toLocaleString()}</span>
-                            <span className="text-brand-accent">₹{product.offerPrice.toLocaleString()}</span>
+                            <span className="line-through text-gray-400 mr-2">đ{product.price.toLocaleString()}</span>
+                            <span className="text-brand-accent">đ{product.offerPrice.toLocaleString()}</span>
                           </>
                         ) : (
-                          `₹${product.price.toLocaleString()}`
+                          `đ${product.price.toLocaleString()}`
                         )}
                       </div>
                     </td>
@@ -753,25 +753,25 @@ const OrderManager = () => {
                       {item.quantity}x {item.name}
                     </span>
                     <span className="font-semibold text-gray-900">
-                      ₹{((item.offerPrice || item.price) * item.quantity).toLocaleString()}
+                      đ{((item.offerPrice || item.price) * item.quantity).toLocaleString()}
                     </span>
                   </div>
                 ))}
                 <div className="flex justify-between text-sm pt-2 mt-2 border-t border-gray-300">
                   <span className="text-gray-700 font-semibold">Tạm tính:</span>
                   <span className="font-semibold text-gray-900">
-                    {order.items.reduce((sum, item) => sum + (item.offerPrice || item.price) * item.quantity, 0).toLocaleString('vi-VN')} ₫
+                    {order.items.reduce((sum, item) => sum + (item.offerPrice || item.price) * item.quantity, 0).toLocaleString('vi-VN')} đ
                   </span>
                 </div>
                 {order.shippingCost && order.shippingCost > 0 && (
                   <div className="flex justify-between text-sm pt-1">
                     <span className="text-gray-700">Phí vận chuyển:</span>
-                    <span className="text-gray-900">{order.shippingCost.toLocaleString('vi-VN')} ₫</span>
+                      <span className="text-gray-900">{order.shippingCost.toLocaleString('vi-VN')} đ</span>
                   </div>
                 )}
                 <div className="flex justify-between text-base font-bold pt-2 mt-2 border-t border-gray-300">
                   <span>Tổng cộng:</span>
-                  <span className="text-brand-cyan">{order.totalAmount.toLocaleString('vi-VN')} ₫</span>
+                    <span className="text-brand-cyan">{order.totalAmount.toLocaleString('vi-VN')} đ</span>
                 </div>
               </div>
               

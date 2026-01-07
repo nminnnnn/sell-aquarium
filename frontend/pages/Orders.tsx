@@ -63,13 +63,13 @@ const Orders = () => {
                       </button>
                     )}
                   </div>
-                  <span className="font-medium">₹{(item.offerPrice || item.price) * item.quantity}</span>
+                  <span className="font-medium">đ{(item.offerPrice || item.price) * item.quantity}</span>
                 </div>
               ))}
             </div>
             <div className="mt-4 pt-3 border-t flex justify-between font-bold">
               <span>Total Amount</span>
-              <span>₹{order.totalAmount}</span>
+              <span>đ{order.totalAmount}</span>
             </div>
           </div>
         ))}
